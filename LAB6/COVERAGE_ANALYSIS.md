@@ -41,3 +41,34 @@ coverage report -m
 The arc `16->18` is the path where a driver has **1 or 2 claims**. Line 14 is False, line 16 is False, and control jumps straight to line 18. That path has no line of its own, so a line-coverage tool counts it as "covered" even though no test ever checks that 1–2 claims leave the premium unchanged. This is the false sense of security the handout warns about.
 
 **Reading the report.** In branch mode, the "Cover" column combines lines and branches: (39 lines run + 29 branches taken) / (39 + 30) = 68/69 = 99%. Pure branch coverage is 29/30 = 96.7%. The report also lists the test file itself (always 100%). The row that matters is `car_insurance_premium.py`.
+
+## 2. Branch coverage — `BranchCoverageTest_car_insurance_premium.py`
+
+Commands:
+
+```bash
+coverage run -m pytest BranchCoverageTest_car_insurance_premium.py
+coverage report -m
+coverage run --branch -m pytest BranchCoverageTest_car_insurance_premium.py
+coverage report -m
+```
+
+| Test file | Tests | Line coverage | Branches taken | Branch-mode "Cover" | Missing |
+|---|---|---|---|---|---|
+| `CodeCoverageTest_car_insurance_premium.py` | 15 | 39/39 = 100% | 29/30 | 99% | `16->18` |
+| `BranchCoverageTest_car_insurance_premium.py` | 28 | 39/39 = 100% | **30/30** | **100%** | — |
+
+**Approach.** The file starts from all 15 code-coverage tests and adds:
+
+- **The missed branch `16->18`.** `test_one_claim_no_adjustment` and `test_two_claims_no_adjustment` drive `annual_premium("sedan", 40, 1 or 2, False)` and expect the base 12000 unchanged. Both line 14 and line 16 are now seen evaluating to False, which closes the last arc.
+- **Age boundaries** (`test_age_boundaries`, parametrized): 18 is allowed, 24 still gets the young-driver surcharge, 25 and 59 get no surcharge, and 60 gets the senior surcharge. These catch off-by-one mistakes such as `<=` vs `<` that branch coverage alone can miss, because one value per side is enough to "cover" a branch.
+- **Bonus tier boundaries** (`test_bonus_tier_boundaries`): 2 → 20, 4 → 35, 10 → 50.
+- **The second condition on line 36.** `if damage_cost < 0 or deductible < 0` is one decision to coverage.py. Negative damage already covers its True branch, so the tool never reports that `deductible < 0` was untested. `test_negative_deductible_raises` adds that condition coverage, which the tool doesn't measure.
+- **`claim_payout` edges**: damage exactly equal to the deductible pays 0 (`<=`), and a payout exactly equal to the insured value is returned unchanged (`>` is strict).
+
+**Result.** 28 tests pass, with 100% line coverage and 30/30 branches (100%) for `car_insurance_premium.py`.
+
+## Takeaways
+
+1. 100% line coverage still left one real path (1–2 claims) completely unverified. Branch coverage is the stricter and more useful target.
+2. Branch coverage is still not condition coverage or boundary testing. The extra tests for compound conditions (`or`) and boundary values go beyond what the tool can report.
